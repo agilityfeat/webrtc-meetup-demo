@@ -18,9 +18,68 @@ VideoCall = {
     VideoCall.localVideo = document.getElementById('myVideo');
     VideoCall.localVideo.srcObject = stream;
     VideoCall.localStream = stream;
+    VideoCall.signaling();
   },
 
-  startCall: function () { },
+  signaling: function() {
+    VideoCall.socket.on('offer', VideoCall.onOffer);
+    VideoCall.socket.on('answer', VideoCall.onAnswer);
+    VideoCall.socket.on('candidate', VideoCall.onCandidate);
+  },
+
+  onCandidate: function (candidate) {
+    var newCandidate = new RTCIceCandidate(candidate);
+    VideoCall.peerConnection.addIceCandidate(newCandidate);
+  },
+
+  onAnswer: function(answer) {
+    VideoCall.setRemoteDescription(answer);
+  },
+
+  onOffer: function(offer) {
+    VideoCall.createPeerConnection();
+    VideoCall.peerConnection.setRemoteDescription(offer);
+    VideoCall.peerConnection.createAnswer()
+    .then(function(desc) {
+      VideoCall.peerConnection.setLocalDescription(desc);
+      VideoCall.socket.emit('answer', desc);
+    });
+  },
+
+  setRemoteDescription: function (sdp) {
+    var newSdp = new RTCSessionDescription(sdp);
+    VideoCall.peerConnection.setRemoteDescription(newSdp);
+  },
+
+  startCall: function () { 
+  	VideoCall.createPeerConnection();
+    VideoCall.peerConnection.createOffer()
+    .then(function(desc){
+      VideoCall.peerConnection.setLocalDescription(desc);
+      VideoCall.socket.emit('offer', desc);
+    });
+  },
+
+  createPeerConnection: function () {
+    VideoCall.peerConnection = new RTCPeerConnection({iceServers: [STUN]});
+    VideoCall.peerConnection.addStream(VideoCall.localStream);
+    VideoCall.peerConnection.onicecandidate = VideoCall.onIceCandidate;
+    VideoCall.peerConnection.onaddstream = VideoCall.onAddStream;
+  },
+
+  onAddStream: function (event) {
+    VideoCall.remoteVideo = document.getElementById('remoteVideo');
+    VideoCall.remoteVideo.srcObject = event.stream;
+    VideoCall.showRemotePeer();
+  },
+
+  onIceCandidate: function (event) {
+    if(event.candidate) {
+      VideoCall.socket.emit('candidate', event.candidate);
+    }
+  },
+
+  
 
 }
 
